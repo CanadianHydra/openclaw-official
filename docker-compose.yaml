@@ -1,0 +1,58 @@
+version: "3.8"
+
+services:
+  openclaw-gateway:
+    build:
+      context: .
+      args:
+        # Bake browser support into the image (Chromium + Xvfb)
+        OPENCLAW_INSTALL_BROWSER: "1"
+        # Optional: add extra system packages you want inside the container
+        # OPENCLAW_DOCKER_APT_PACKAGES: "git curl jq ffmpeg"
+    environment:
+      # REQUIRED if you bind beyond loopback
+      OPENCLAW_GATEWAY_TOKEN: ${OPENCLAW_GATEWAY_TOKEN}
+
+      # Gateway port (docs show 18789 as the default)
+      OPENCLAW_GATEWAY_PORT: "18789"
+
+      # Persist Playwright browsers
+      PLAYWRIGHT_BROWSERS_PATH: "/home/node/.cache/ms-playwright"
+
+      # Optional but useful in containerized setups
+      OPENCLAW_HOME: "/home/node"
+      NODE_ENV: "production"
+    ports:
+      - "18789:18789"
+    volumes:
+      # Persist OpenClaw config/state + workspace on the host (or named volumes)
+      - openclaw_state:/home/node/.openclaw
+      - openclaw_workspace:/home/node/.openclaw/workspace
+
+      # Persist /home/node so browser/tool caches survive container recreation
+      - openclaw_home:/home/node
+    restart: unless-stopped
+    command: ["node","openclaw.mjs","gateway","--allow-unconfigured","--bind","lan","--port","18789"]
+
+  # Optional helper container so you can run CLI commands easily:
+  # docker compose run --rm openclaw-cli onboard
+  openclaw-cli:
+    build:
+      context: .
+      args:
+        OPENCLAW_INSTALL_BROWSER: "1"
+    environment:
+      OPENCLAW_GATEWAY_TOKEN: ${OPENCLAW_GATEWAY_TOKEN}
+      PLAYWRIGHT_BROWSERS_PATH: "/home/node/.cache/ms-playwright"
+      OPENCLAW_HOME: "/home/node"
+    volumes:
+      - openclaw_state:/home/node/.openclaw
+      - openclaw_workspace:/home/node/.openclaw/workspace
+      - openclaw_home:/home/node
+    entrypoint: ["node","openclaw.mjs"]
+    profiles: ["cli"]
+
+volumes:
+  openclaw_state:
+  openclaw_workspace:
+  openclaw_home:
